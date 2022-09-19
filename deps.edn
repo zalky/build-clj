@@ -1,0 +1,12 @@
+{:deps    {io.github.clojure/tools.build    {:git/tag "v0.8.3" :git/sha "0d20256"}
+           io.github.seancorfield/build-clj {:git/tag "v0.8.3" :git/sha "7ac1f8d" :exclusions [slipset/deps-deploy]} 
+           io.zalky/deps-deploy             {:git/url "https://github.com/zalky/deps-deploy"
+                                             :git/sha "25e06761350e888436c84464721a572af858f9c1"}
+           org.clojure/clojure {:mvn/version "1.10.3"}}
+ :aliases {:repl {:extra-deps {io.zalky/runway               {:local/root "../runway"}
+                               nrepl/nrepl                   {:mvn/version "0.8.3"}
+                               cider/cider-nrepl             {:mvn/version "0.26.0"}
+                               refactor-nrepl/refactor-nrepl {:mvn/version "2.5.1"}}
+                  :exec-fn    runway.core/exec
+                  :exec-args  {runway.nrepl/server true
+                               runway.core/watcher true}}}}
