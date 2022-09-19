@@ -75,7 +75,7 @@
   (let [root   (root-file)
         root-p (.toPath root)]
     (with-open [fs (jar-file-system opts)]
-      (doseq [^File f (file/collect-files root)]
+      (doseq [^File f (.listFiles root)]
         (when-let [p (some->> (.toPath f)
                               (.relativize root-p)
                               (.toString)
