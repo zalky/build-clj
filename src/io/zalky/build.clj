@@ -1,5 +1,8 @@
 (ns io.zalky.build
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.xml :as xml]
+            [clojure.java.io :as io]
+            [clojure.tools.build.api :as b]
+            [clojure.tools.build.tasks.write-pom :as bpom]
             [clojure.tools.build.util.file :as file]
             [org.corfield.build :as cb])
   (:import java.io.File
@@ -8,6 +11,8 @@
            java.nio.file.attribute.FileAttribute
            java.util.HashMap))
 
+(xml/alias-uri 'pom "http://maven.apache.org/POM/4.0.0")
+
 (defn root-file
   []
   (-> "user.dir"
@@ -15,7 +20,7 @@
       (file/ensure-dir)))
 
 (defn filter-meta-files
-  [{re  :meta-file-re
+  [{re  :meta-inf-files
     :or {re ["(?i)license"
              "(?i)readme"]}} s]
   (some #(when (re-find (re-pattern %) s) s) re))
@@ -76,13 +81,111 @@
                               (.toString)
                               (filter-meta-files opts)
                               (meta-inf-path opts))]
-          (add-to-jar fs f p))))))
+          (add-to-jar fs f p)))))
+  opts)
+
+(def licenses
+  {:epl-1  {:name "Eclipse Public License 1.0"
+            :url  "https://www.eclipse.org/legal/epl-v10.html"}
+   :epl-2  {:name "Eclipse Public License 2.0"
+            :url  "https://www.eclipse.org/legal/epl-v20.html"}
+   :apache {:name "Apache License Version 2.0"
+            :url  "http://www.apache.org/licenses/LICENSE-2.0"}
+   :mit    {:name "The MIT License"
+            :url  "https://opensource.org/licenses/MIT"}})
+
+(defn license-el
+  [{:keys [license]}]
+  (when-let [{:keys [name url]} (get licenses license)]
+    (xml/sexp-as-element
+     [::pom/licenses
+      [::pom/license
+       [::pom/name name]
+       [::pom/url url]]])))
+
+(defn desc-el
+  [{:keys [description]}]
+  (when description
+    (xml/sexp-as-element
+     [::pom/description description])))
+
+(defn append-xml
+  [pom el]
+  (cond-> pom
+    el (update :content concat [el])))
+
+(defn pom-dir
+  [{:keys [class-dir target lib]}]
+  (file/ensure-dir
+   (cond
+     class-dir (-> class-dir
+                   (b/resolve-path)
+                   (io/file (bpom/meta-maven-path {:lib lib})))
+     target    (-> target
+                   (b/resolve-path)
+                   (io/file)
+                   (file/ensure-dir)))))
+
+(defn class-dir-pom-file
+  [opts]
+  (let [file (io/file (pom-dir opts) "pom.xml")]
+    (if-not (.exists file)
+      (throw
+       (ex-info
+        "No pom.xml in :class-dir or :target."
+        {:path (.getPath file)}))
+      file)))
+
+(defn read-pom
+  [file]
+  (with-open [r (io/reader file)]
+    (xml/parse r :skip-whitespace true)))
+
+(defn write-pom
+  [pom file]
+  (with-open [w (io/writer file)]
+    (xml/indent pom w)))
+
+(defn jar-pom-file
+  [{:keys [class-dir]} pom-file]
+  (-> (io/file class-dir)
+      (.toPath)
+      (.relativize (.toPath pom-file))
+      (str)
+      (io/file)))
+
+(defn add-pom-attributes
+  [opts]
+  (let [file (class-dir-pom-file opts)]
+    (with-open [fs (jar-file-system opts)]
+      (-> file
+          (read-pom)
+          (append-xml (license-el opts))
+          (append-xml (desc-el opts))
+          (write-pom file))
+      (->> file
+           (jar-pom-file opts)
+           (add-to-jar fs file))))
+  opts)
 
 (defn jar
+  "Same semantics as org.corfield.build/jar, but adds files in the
+  project root to the jar META-INF folder via regex, and license and
+  description elements to the pom.xml.
+
+  Options:
+  :meta-inf-files  - Seq of regex patterns to match against files
+                     in the project root. By default (?i)license
+                     (?i)readme. Matched files will be included in
+                     META-INF folder of the jar.
+  :license         - See the keys of io.zalky.build/licesnse for
+                     valid licenses
+  :description     - Project description"
   [opts]
   (-> opts
       (#'cb/jar-opts)
       (cb/jar)
+      (add-pom-attributes)
       (jar-add-meta-files))
   opts)
 
