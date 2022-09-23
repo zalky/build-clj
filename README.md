@@ -24,7 +24,7 @@ Just include an alias like the following in your project `deps.edn`:
 
 ```clj
 {:build {:deps       {io.zalky/build-clj {:git/url "https://github.com/zalky/build-clj.git"
-                                          :git/sha "1feb7993b63af764d1721a71b5c3f2de13329118"}}
+                                          :git/sha "67ee63f5f4e77165c378369f781275d5aca39747"}}
          :ns-default io.zalky.build}}
 ```
 
@@ -33,7 +33,7 @@ Or if you prefer the default `slipset/deps-deploy`:
 ```clj
 {:build {:deps       {slipset/deps-deploy {:mvn/version "0.2.0"}
                       io.zalky/build-clj  {:git/url    "https://github.com/zalky/build-clj.git"
-                                           :git/sha    "1feb7993b63af764d1721a71b5c3f2de13329118"
+                                           :git/sha    "67ee63f5f4e77165c378369f781275d5aca39747"
                                            :exclusions [io.zalky/deps-deploy]}}
          :ns-default io.zalky.build}}
 ```
