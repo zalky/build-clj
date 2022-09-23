@@ -62,7 +62,7 @@
                  (.put "create" "true"))]
     (FileSystems/newFileSystem uri config)))
 
-(defn meta-inf-path
+(defn meta-inf-file
   [{lib :lib} s]
   (io/file "META-INF"
            "build-clj"
@@ -76,12 +76,12 @@
         root-p (.toPath root)]
     (with-open [fs (jar-file-system opts)]
       (doseq [^File f (.listFiles root)]
-        (when-let [p (some->> (.toPath f)
-                              (.relativize root-p)
-                              (.toString)
-                              (filter-meta-files opts)
-                              (meta-inf-path opts))]
-          (add-to-jar fs f p)))))
+        (when-let [mif (some->> (.toPath f)
+                                (.relativize root-p)
+                                (.toString)
+                                (filter-meta-files opts)
+                                (meta-inf-file opts))]
+          (add-to-jar fs f mif)))))
   opts)
 
 (def licenses
