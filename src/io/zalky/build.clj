@@ -4,6 +4,7 @@
             [clojure.tools.build.api :as b]
             [clojure.tools.build.tasks.write-pom :as bpom]
             [clojure.tools.build.util.file :as file]
+            [clojure.walk :as walk]
             [org.corfield.build :as cb])
   (:import java.io.File
            java.net.URI
@@ -136,10 +137,19 @@
         {:path (.getPath file)}))
       file)))
 
+(defn- realize-all
+  [x]
+  (walk/postwalk identity x))
+
 (defn read-pom
+  "Must realize the fully nested pom before we close the reader and fall
+  out of scope. We need to close the reader before we open it
+  again for writing."
   [file]
   (with-open [r (io/reader file)]
-    (xml/parse r :skip-whitespace true)))
+    (-> r
+        (xml/parse :skip-whitespace true)
+        (realize-all))))
 
 (defn write-pom
   [pom file]
