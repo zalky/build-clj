@@ -56,24 +56,24 @@ clojure -T:build jar :lib org.your/project :version "\"0.1.0\"" :description "\"
 
 ## Task Options
 
-All tasks have two required options:
+All tasks have two required parameters:
 
 1. **`:lib`**: Release group id and artifact id, ex:
 `io.zalky/build-clj`
 
 2. **`:version`**: Release version, ex: `0.1.1`, `1.0.2-SNAPSHOT`
 
-The `jar` and `uber` task have the following additional options:
+The `jar` and `uber` task have the following additional parameters:
 
 1. **`:jar-dir`**: Directory of output jar, default is `target`.
 
-2. **`:basis`**: Options for clojure.tools.build/create-basis
-   subtasks, default basis created if not provided.
+2. **`:basis`**: Options passed to `clojure.tools.build/create-basis`
+   subtasks. Default basis created if not provided.
 
 3. **`:class-dir`**: Intermediary directory where contents of the jar
-   are collected before loading. This gives you the opportunity to add
-   additional things if you are using non-Clojure build frameworks,
-   like `make`. Default is `<:jar-dir>/classes/`
+   are collected before archiving. This gives you the opportunity to
+   add additional things if you are using non-Clojure build
+   frameworks, like `make`. Default is `<:jar-dir>/classes/`
 
 4. **`:src-dirs`**: An explicit list of source directories to include
    in the jar. If not specified, everything on the classpath will be
@@ -94,7 +94,7 @@ The `jar` and `uber` task have the following additional options:
 
 7. **`:description`**: Project description added to `pom.xml`
 
-The `uber` task additionally has the following required option:
+The `uber` task additionally has the following required parameters:
 
 1. **`:main`**: Namespace with `-main` function. Namespace must be
    configured with `:gen-class`.
@@ -105,7 +105,7 @@ parameter:
 1. **`:jar-dir`**: Directory where to find the jar to deploy, default
    is `target`.
 
-The `deploy` task has the following optional options:
+The `deploy` task has the following optional parameters:
 
 1. **`:repository`**: Conforms to the semantics of
    `deps-deploy.deps-deploy/deploy`. If left unspecified, Clojars is

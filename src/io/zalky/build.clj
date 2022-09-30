@@ -243,8 +243,8 @@
   :basis           - Options for clojure.tools.build/create-basis
                      subtasks
   :class-dir       - Intermediary directory where contents of the
-                     jar are collected before loading into jar.
-                     Default is <:jar-dir>/classes/
+                     jar are collected before archiving. Default
+                     is <:jar-dir>/classes/
   :src-dirs        - An explicit list of source directories to
                      include in the jar. If not specified,
                      everything on the classpath will be included.
