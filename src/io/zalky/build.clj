@@ -20,7 +20,7 @@
       (System/getProperty)
       (file/ensure-dir)))
 
-(defn filter-meta-files
+(defn meta-inf-filter
   [{re  :meta-inf-files
     :or {re ["(?i)license"
              "(?i)readme"]}} s]
@@ -80,7 +80,7 @@
         (when-let [mif (some->> (.toPath f)
                                 (.relativize root-p)
                                 (.toString)
-                                (filter-meta-files opts)
+                                (meta-inf-filter opts)
                                 (meta-inf-file opts))]
           (add-to-jar fs f mif)))))
   opts)
@@ -193,7 +193,7 @@
   [& xs]
   (str (apply io/file xs)))
 
-(defn jar-target-path
+(defn jar-target-file
   [target lib version]
   (->> version
        (format "%s-%s.jar" (name lib))
@@ -203,16 +203,25 @@
   [opts]
   (let [lib    (or (opts :lib)       (throw (Exception. ":lib required")))
         v      (or (opts :version)   (throw (Exception. ":version required")))
-        t-dir  (or (opts :target)    "target")
-        basis  (-> (opts :basis)     (b/create-basis)) 
+        j-dir  (or (opts :jar-dir)   "target")
+        basis  (-> (opts :basis)     (b/create-basis))
         s-dirs (or (opts :src-dirs)  (:paths basis))
-        c-dir  (or (opts :class-dir) (crumbs t-dir "classes"))]
-    (->> {:target    t-dir
+        c-dir  (or (opts :class-dir) (crumbs j-dir "classes"))
+        j-file (jar-target-file j-dir lib v)]
+    (->> {:target    j-dir
           :class-dir c-dir
           :src-dirs  s-dirs
           :basis     basis
-          :jar-file  (jar-target-path t-dir lib v)}
+          :jar-file  j-file
+          :uber-file j-file}
          (merge opts))))
+
+(defn uber-params
+  [opts]
+  (let [main (or (opts :main) (throw (Exception. ":main required")))]
+    (-> opts
+        (build-params)
+        (assoc :ns-compile [main]))))
 
 (defn copy-for-jar
   [{:keys [src-dirs class-dir]
@@ -230,22 +239,26 @@
   :version         - Release version
 
   Additional options:
-  :target          - Directory where to save the output jar. Default
-                     is target
-  :class-dir       - Intermediary directory where everything is
-                     saved before loading into jar. Default is
-                     target/class/
-  :src-dirs        - By default the task includes all files on the
-                     classpath. Alternatively, you can provide a
-                     list of source directories to include in the
-                     jar.
+  :jar-dir         - Directory of output jar. Default is target
+  :basis           - Options for clojure.tools.build/create-basis
+                     subtasks
+  :class-dir       - Intermediary directory where contents of the
+                     jar are collected before loading into jar.
+                     Default is <:jar-dir>/classes/
+  :src-dirs        - An explicit list of source directories to
+                     include in the jar. If not specified,
+                     everything on the classpath will be included.
   :meta-inf-files  - Seq of regex patterns to match against files
-                     in the project root. By default (?i)license
-                     (?i)readme. Matched files will be included in
-                     META-INF folder of the jar.
-  :license         - See the keys of io.zalky.build/licesnse for
-                     valid licenses
-  :description     - Project description"
+                     in the project root, by default `(?i)license`
+                     and `(?i)readme`. Matched files will be
+                     included in the META-INF folder of the jar.
+  :license         - One of the valid licenses enumerated by the
+                     keys of io.zalky.build/licenses. The
+                     attributes of this license will be added to
+                     the pom.xml file. This license should also
+                     match the file that is included via the
+                     :meta-inf-files regex patterns.
+  :description     - Project description added to pom.xml"
   [opts]
   (let [params (build-params opts)]
     (b/write-pom params)
@@ -256,12 +269,40 @@
         (jar-add-meta-files)))
   opts)
 
+(defn uber
+  "Creates a library jar.
+
+  Required options:
+  :lib             - Release group id and artifact id
+  :version         - Release version
+  :main            - Namespace with -main function. Namespace
+                     must be configured with :gen-class.
+
+  Additional options, if provided, are identical to
+  io.zalky.build/jar."
+  [opts]
+  (let [params (uber-params opts)]
+    (b/write-pom params)
+    (copy-for-jar params)
+    (b/compile-clj params)
+    (b/uber params)
+    (-> params
+        (add-pom-attributes)
+        (jar-add-meta-files)))
+  opts)
+
 (defn install
   "Install a jar to the local Maven repo.
 
   Required options:
   :lib             - Release group id and artifact id
-  :version         - Release version"
+  :version         - Release version
+
+  If jar is not in target directory:
+  :jar-dir         - Location of jar file
+
+  Additional options, if provided, are identical to
+  io.zalky.build/jar."
   [opts]
   (-> opts
       (build-params)
@@ -269,6 +310,22 @@
   opts)
 
 (defn deploy
+  "Deploys a jar to a repository.
+
+  Required options:
+  :lib             - Release group id and artifact id
+  :version         - Release version
+
+  If jar is not in target directory:
+  :jar-dir         - Location of jar file
+
+  Additional options conform to the semantics of the
+  deps-deploy.deps-deploy/deploy fn:
+
+  :repository      - If left unspecified, Clojars is assumed
+  :sign-releases?  - Default true
+  :sign-key-id     - The gpg signing key to use. If left
+                     unspecified, default key is used."
   [opts]
   (let [params (build-params opts)]
     (->> {:installer :remote
