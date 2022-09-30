@@ -4,8 +4,8 @@
             [clojure.tools.build.api :as b]
             [clojure.tools.build.tasks.write-pom :as bpom]
             [clojure.tools.build.util.file :as file]
-            [clojure.walk :as walk]
-            [org.corfield.build :as cb])
+            [clojure.zip :as z]
+            [deps-deploy.deps-deploy :as deploy])
   (:import java.io.File
            java.net.URI
            [java.nio.file Files FileSystem FileSystems StandardCopyOption]
@@ -116,16 +116,11 @@
     el (update :content concat [el])))
 
 (defn pom-dir
-  [{:keys [class-dir target lib]}]
+  [{:keys [class-dir lib]}]
   (file/ensure-dir
-   (cond
-     class-dir (-> class-dir
-                   (b/resolve-path)
-                   (io/file (bpom/meta-maven-path {:lib lib})))
-     target    (-> target
-                   (b/resolve-path)
-                   (io/file)
-                   (file/ensure-dir)))))
+   (-> class-dir
+       (b/resolve-path)
+       (io/file (bpom/meta-maven-path {:lib lib})))))
 
 (defn class-dir-pom-file
   [opts]
@@ -133,13 +128,29 @@
     (if-not (.exists file)
       (throw
        (ex-info
-        "No pom.xml in :class-dir or :target."
+        "No pom.xml in :class-dir"
         {:path (.getPath file)}))
       file)))
 
+(defn- xml-element
+  [{:keys [tag attrs]
+    :as   node} children]
+  (with-meta
+    (apply xml/element tag attrs children)
+    (meta node)))
+
+(defn- xml-zipper
+  [root]
+  (z/zipper xml/element? :content xml-element root))
+
 (defn- realize-all
-  [x]
-  (walk/postwalk identity x))
+  "Must preserve xml metadata, cannot use clojure.walk."
+  [root]
+  (let [z (xml-zipper root)]
+    (loop [n z]
+      (if-not (z/end? n)
+        (recur (z/next n))
+        (z/root n)))))
 
 (defn read-pom
   "Must realize the fully nested pom before we close the reader and fall
@@ -178,12 +189,56 @@
            (add-to-jar fs file))))
   opts)
 
-(defn jar
-  "Same semantics as org.corfield.build/jar, but adds files in the
-  project root to the jar META-INF folder via regex, and license and
-  description elements to the pom.xml.
+(defn crumbs
+  [& xs]
+  (str (apply io/file xs)))
 
-  Options:
+(defn jar-target-path
+  [target lib version]
+  (->> version
+       (format "%s-%s.jar" (name lib))
+       (crumbs target)))
+
+(defn build-params
+  [opts]
+  (let [lib    (or (opts :lib)       (throw (Exception. ":lib required")))
+        v      (or (opts :version)   (throw (Exception. ":version required")))
+        t-dir  (or (opts :target)    "target")
+        basis  (-> (opts :basis)     (b/create-basis)) 
+        s-dirs (or (opts :src-dirs)  (:paths basis))
+        c-dir  (or (opts :class-dir) (crumbs t-dir "classes"))]
+    (->> {:target    t-dir
+          :class-dir c-dir
+          :src-dirs  s-dirs
+          :basis     basis
+          :jar-file  (jar-target-path t-dir lib v)}
+         (merge opts))))
+
+(defn copy-for-jar
+  [{:keys [src-dirs class-dir]
+    :as   opts}]
+  (b/copy-dir
+   {:src-dirs   src-dirs
+    :target-dir class-dir})
+  opts)
+
+(defn jar
+  "Creates a library jar.
+
+  Required options:
+  :lib             - Release group id and artifact id
+  :version         - Release version
+
+  Additional options:
+  :target          - Directory where to save the output jar. Default
+                     is target
+  :class-dir       - Intermediary directory where everything is
+                     saved before loading into jar. Default is
+                     target/class/
+  :src-dirs        - By default the task includes all files on the
+                     classpath. Alternatively, you can provide a
+                     list of source directories to include in the
+                     jar.
   :meta-inf-files  - Seq of regex patterns to match against files
                      in the project root. By default (?i)license
                      (?i)readme. Matched files will be included in
@@ -192,16 +247,33 @@
                      valid licenses
   :description     - Project description"
   [opts]
-  (-> opts
-      (#'cb/jar-opts)
-      (cb/jar)
-      (add-pom-attributes)
-      (jar-add-meta-files))
+  (let [params (build-params opts)]
+    (b/write-pom params)
+    (copy-for-jar params)
+    (b/jar params)
+    (-> params
+        (add-pom-attributes)
+        (jar-add-meta-files)))
   opts)
 
-(def clean cb/clean)
-(def uber cb/uber)
-(def install cb/install)
-(def deploy cb/deploy)
-(def run-task cb/run-task)
-(def run-test cb/run-tests)
+(defn install
+  "Install a jar to the local Maven repo.
+
+  Required options:
+  :lib             - Release group id and artifact id
+  :version         - Release version"
+  [opts]
+  (-> opts
+      (build-params)
+      (b/install))
+  opts)
+
+(defn deploy
+  [opts]
+  (let [params (build-params opts)]
+    (->> {:installer :remote
+          :artifact  (:jar-file params)
+          :pom-file  (class-dir-pom-file params)}
+         (merge opts)
+         (deploy/deploy)))
+  opts)

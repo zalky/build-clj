@@ -1,19 +1,19 @@
 # Build-clj
 
-Extension of
-[`build-clj`](https://github.com/seancorfield/build-clj). See the
-documentation there for complete usage.
+Build tasks based in
+[`tools.build`](https://github.com/clojure/tools.build)
 
-This extension has the same api but with an extended `jar` tasks that
-adds license and readme files to the `META-INF` directory of your jar,
-as well as adds license and project description attributes to the
-`pom.xml` (similar to leiningen).
+1. `jar`: adds license and readme files to the `META-INF` directory of
+    your jar, as well as adds license and project description
+    attributes to the `pom.xml` (similar to leiningen)
 
-It also includes a fork of
-[`slipset/deps-deploy`](https://github.com/slipset/deps-deploy) that
-signs your releases by default, but doesn't ask for or load your gpg
-password into memory, instead delegating it to the gpg
-process.
+2. `deploy`: uses a fork of
+   [`slipset/deps-deploy`](https://github.com/slipset/deps-deploy)
+   that signs your releases by default, but doesn't ask for or load
+   your gpg password into memory, instead delegating it to the gpg
+   process
+
+3. `install`
 
 There are also some useful functions in the `io.zalky.build` namespace
 for updating files in jars.
