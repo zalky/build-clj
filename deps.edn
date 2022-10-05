@@ -5,7 +5,7 @@
  :aliases {:repl {:extra-deps {io.zalky/runway               {:local/root "../runway"}
                                nrepl/nrepl                   {:mvn/version "0.8.3"}
                                cider/cider-nrepl             {:mvn/version "0.28.5"}
-                               refactor-nrepl/refactor-nrepl {:mvn/version "2.5.1"}}
+                               refactor-nrepl/refactor-nrepl {:mvn/version "3.5.5"}}
                   :exec-fn    runway.core/exec
                   :exec-args  {runway.nrepl/server {}
                                runway.core/watcher {}}}}}

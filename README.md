@@ -1,3 +1,5 @@
+<img src="https://i.imgur.com/GH71uSi.png" title="zalky" align="right" width="250"/>
+
 # Build-clj
 
 Build tasks via
