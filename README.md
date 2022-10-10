@@ -21,7 +21,7 @@ Build tasks via
    your gpg password into memory, instead delegating it to the gpg
    process
 
-There are also some useful functions in the `io.zalky.build` namespace
+There are also some useful functions in the `io.zalky.build.jar` namespace
 for updating files in jars.
 
 ## Usage

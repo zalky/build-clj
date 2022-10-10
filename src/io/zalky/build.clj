@@ -5,85 +5,10 @@
             [clojure.tools.build.tasks.write-pom :as bpom]
             [clojure.tools.build.util.file :as file]
             [clojure.zip :as z]
-            [deps-deploy.deps-deploy :as deploy])
-  (:import java.io.File
-           java.net.URI
-           [java.nio.file Files FileSystem FileSystems StandardCopyOption]
-           java.nio.file.attribute.FileAttribute
-           java.util.HashMap))
+            [deps-deploy.deps-deploy :as deploy]
+            [io.zalky.build.jar :as jar]))
 
 (xml/alias-uri 'pom "http://maven.apache.org/POM/4.0.0")
-
-(defn root-file
-  []
-  (-> "user.dir"
-      (System/getProperty)
-      (file/ensure-dir)))
-
-(defn meta-inf-filter
-  [{re  :meta-inf-files
-    :or {re ["(?i)license"
-             "(?i)readme"]}} s]
-  (some #(when (re-find (re-pattern %) s) s) re))
-
-(defn jar-root-uri
-  [opts]
-  (->> (:jar-file opts)
-       (io/file)
-       (.getCanonicalPath)
-       (format "jar:file:%s")
-       (URI/create)))
-
-(defn jar-path
-  [^FileSystem fs ^File file]
-  (->> (into-array String [])
-       (.getPath fs (str file))))
-
-(defn jar-ensure-parents
-  [^FileSystem fs ^File file]
-  (when-let [p (some->> file
-                        (.getParent)
-                        (jar-path fs))]
-    (->> (into-array FileAttribute [])
-         (Files/createDirectories p))))
-
-(defn add-to-jar
-  [^FileSystem fs ^File from ^File to]
-  (let [p1 (.toPath from)
-        p2 (jar-path fs to)]
-    (jar-ensure-parents fs to)
-    (->> [StandardCopyOption/REPLACE_EXISTING]
-         (into-array StandardCopyOption)
-         (Files/copy p1 p2))))
-
-(defn ^FileSystem jar-file-system
-  [opts]
-  (let [uri    (jar-root-uri opts)
-        config (doto (HashMap.)
-                 (.put "create" "true"))]
-    (FileSystems/newFileSystem uri config)))
-
-(defn meta-inf-file
-  [{lib :lib} s]
-  (io/file "META-INF"
-           "build-clj"
-           (namespace lib)
-           (name lib)
-           s))
-
-(defn jar-add-meta-files
-  [opts]
-  (let [root   (root-file)
-        root-p (.toPath root)]
-    (with-open [fs (jar-file-system opts)]
-      (doseq [^File f (.listFiles root)]
-        (when-let [mif (some->> (.toPath f)
-                                (.relativize root-p)
-                                (.toString)
-                                (meta-inf-filter opts)
-                                (meta-inf-file opts))]
-          (add-to-jar fs f mif)))))
-  opts)
 
 (def licenses
   {:epl-1  {:name "Eclipse Public License 1.0"
@@ -178,7 +103,7 @@
 (defn add-pom-attributes
   [opts]
   (let [file (class-dir-pom-file opts)]
-    (with-open [fs (jar-file-system opts)]
+    (with-open [fs (jar/jar-file-system opts)]
       (-> file
           (read-pom)
           (append-xml (license-el opts))
@@ -186,7 +111,7 @@
           (write-pom file))
       (->> file
            (jar-pom-file opts)
-           (add-to-jar fs file))))
+           (jar/add-to-jar fs file))))
   opts)
 
 (defn crumbs
@@ -199,7 +124,7 @@
        (format "%s-%s.jar" (name lib))
        (crumbs target)))
 
-(defn build-params
+(defn jar-params
   [opts]
   (let [lib    (or (opts :lib)       (throw (Exception. ":lib required")))
         v      (or (opts :version)   (throw (Exception. ":version required")))
@@ -220,7 +145,7 @@
   [opts]
   (let [main (or (opts :main) (throw (Exception. ":main required")))]
     (-> opts
-        (build-params)
+        (jar-params)
         (assoc :ns-compile [main]))))
 
 (defn copy-for-jar
@@ -234,49 +159,70 @@
 (defn jar
   "Creates a library jar.
 
-  Required options:
-  :lib             - Release group id and artifact id
-  :version         - Release version
+  Required:
 
-  Additional options:
-  :jar-dir         - Directory of output jar. Default is target
-  :basis           - Options for clojure.tools.build/create-basis
-                     subtasks
-  :class-dir       - Intermediary directory where contents of the
-                     jar are collected before archiving. Default
-                     is <:jar-dir>/classes/
-  :src-dirs        - An explicit list of source directories to
-                     include in the jar. If not specified,
-                     everything on the classpath will be included.
-  :meta-inf-files  - Seq of regex patterns to match against files
-                     in the project root, by default `(?i)license`
-                     and `(?i)readme`. Matched files will be
-                     included in the META-INF folder of the jar.
-  :license         - One of the valid licenses enumerated by the
-                     keys of io.zalky.build/licenses. The
-                     attributes of this license will be added to
-                     the pom.xml file. This license should also
-                     match the file that is included via the
-                     :meta-inf-files regex patterns.
-  :description     - Project description added to pom.xml"
+  :lib
+            Release group id and artifact id
+
+  :version
+            Release version
+
+  Optional:
+
+  :jar-dir
+            Directory of output jar. Default is target
+
+  :basis
+            Options for clojure.tools.build/create-basis subtasks
+
+  :class-dir
+            Intermediary directory where contents of the jar are
+            collected before archiving. Default is <:jar-dir>/classes/
+
+  :src-dirs
+            An explicit list of source directories to include in the
+            jar. If not specified, everything on the classpath will be
+            included.
+
+  :meta-inf-files
+            Seq of regex patterns to match against files in the
+            project root, by default `(?i)license` and
+            `(?i)readme`. Matched files will be included in the
+            META-INF folder of the jar.
+
+  :license
+            One of the valid licenses enumerated by the keys of
+            io.zalky.build/licenses. The attributes of this license
+            will be added to the pom.xml file. This license should
+            also match the file that is included via the
+            :meta-inf-files regex patterns.
+
+  :description
+            Project description added to pom.xml"
   [opts]
-  (let [params (build-params opts)]
+  (let [params (jar-params opts)]
     (b/write-pom params)
     (copy-for-jar params)
     (b/jar params)
     (-> params
         (add-pom-attributes)
-        (jar-add-meta-files)))
+        (jar/jar-add-meta-files)))
   opts)
 
 (defn uber
   "Creates a library jar.
 
-  Required options:
-  :lib             - Release group id and artifact id
-  :version         - Release version
-  :main            - Namespace with -main function. Namespace
-                     must be configured with :gen-class.
+  Required:
+
+  :lib
+            Release group id and artifact id
+
+  :version
+            Release version
+
+  :main
+            Namespace with -main function. Namespace must be
+            configured with :gen-class.
 
   Additional options, if provided, are identical to
   io.zalky.build/jar."
@@ -288,46 +234,63 @@
     (b/uber params)
     (-> params
         (add-pom-attributes)
-        (jar-add-meta-files)))
+        (jar/jar-add-meta-files)))
   opts)
 
 (defn install
   "Install a jar to the local Maven repo.
 
-  Required options:
-  :lib             - Release group id and artifact id
-  :version         - Release version
+  Required:
 
-  If jar is not in target directory:
-  :jar-dir         - Location of jar file
+  :lib
+            Release group id and artifact id
+
+  :version
+            Release version
+
+  Required if the jar is not in target directory:
+
+  :jar-dir
+            Location of jar file
 
   Additional options, if provided, are identical to
   io.zalky.build/jar."
   [opts]
   (-> opts
-      (build-params)
+      (jar-params)
       (b/install))
   opts)
 
 (defn deploy
   "Deploys a jar to a repository.
 
-  Required options:
-  :lib             - Release group id and artifact id
-  :version         - Release version
+  Required:
 
-  If jar is not in target directory:
-  :jar-dir         - Location of jar file
+  :lib
+            Release group id and artifact id
+
+  :version
+            Release version
+
+  Required if the jar is not in target directory:
+
+  :jar-dir
+            Location of jar file
 
   Additional options conform to the semantics of the
   deps-deploy.deps-deploy/deploy fn:
 
-  :repository      - If left unspecified, Clojars is assumed
-  :sign-releases?  - Default true
-  :sign-key-id     - The gpg signing key to use. If left
-                     unspecified, default key is used."
+  :repository
+            If left unspecified, Clojars is assumed
+
+  :sign-releases?
+            Default true
+
+  :sign-key-id
+            The gpg signing key to use. If left unspecified, default
+            key is used."
   [opts]
-  (let [params (build-params opts)]
+  (let [params (jar-params opts)]
     (->> {:installer :remote
           :artifact  (:jar-file params)
           :pom-file  (class-dir-pom-file params)}
