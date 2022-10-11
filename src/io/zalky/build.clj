@@ -35,6 +35,12 @@
     (xml/sexp-as-element
      [::pom/description description])))
 
+(defn url-el
+  [{:keys [url]}]
+  (when url
+    (xml/sexp-as-element
+     [::pom/url url])))
+
 (defn append-xml
   [pom el]
   (cond-> pom
@@ -108,6 +114,7 @@
           (read-pom)
           (append-xml (license-el opts))
           (append-xml (desc-el opts))
+          (append-xml (url-el opts))
           (write-pom file))
       (->> file
            (jar-pom-file opts)
