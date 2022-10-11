@@ -6,9 +6,9 @@ Build tasks via
 [`tools.build`](https://github.com/clojure/tools.build):
 
 1. `jar`: builds a library jar, but also adds license and readme files
-    to the `META-INF` directory of your jar, as well as license and
-    project description attributes to the `pom.xml` (similar to
-    leiningen)
+    to the `META-INF` directory of your jar, as well as project
+    license, description, and url attributes to the `pom.xml` (similar
+    to leiningen)
 
 2. `uber`: same semantics as `jar`, just produces an uberjar instead.
 
@@ -30,7 +30,7 @@ Just include the following alias in your `deps.edn`:
 
 ```clj
 {:build {:deps       {io.zalky/build-clj {:git/url "https://github.com/zalky/build-clj.git"
-                                          :git/sha "e55d0063bc2ac6297e16a2edf026982de16432fb"}}
+                                          :git/sha "c8782e887381160f6d34d48425dc2d3a2a40f4cb"}}
          :ns-default io.zalky.build}}
 ```
 
@@ -39,7 +39,7 @@ Or if you prefer the default `slipset/deps-deploy` target:
 ```clj
 {:build {:deps       {slipset/deps-deploy {:mvn/version "0.2.0"}
                       io.zalky/build-clj  {:git/url    "https://github.com/zalky/build-clj.git"
-                                           :git/sha    "e55d0063bc2ac6297e16a2edf026982de16432fb"
+                                           :git/sha    "c8782e887381160f6d34d48425dc2d3a2a40f4cb"
                                            :exclusions [io.zalky/deps-deploy]}}
          :ns-default io.zalky.build}}
 ```
@@ -95,6 +95,8 @@ The `jar` and `uber` task have the following additional parameters:
    and `:epl-2`.
 
 7. **`:description`**: Project description added to `pom.xml`
+
+8. **`:url`**: Project url added to `pom.xml`
 
 The `uber` task additionally has the following required parameters:
 

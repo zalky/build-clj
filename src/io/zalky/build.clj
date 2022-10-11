@@ -205,7 +205,10 @@
             :meta-inf-files regex patterns.
 
   :description
-            Project description added to pom.xml"
+            Project description added to pom.xml
+
+  :url
+            Project url added to pom.xml"
   [opts]
   (let [params (jar-params opts)]
     (b/write-pom params)
