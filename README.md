@@ -21,6 +21,11 @@ Build tasks via
    your gpg password into memory, instead delegating it to the gpg
    process
 
+While you could use these function directly, a more streamlined way to
+use them is via the `make` tasks defined in
+[`io.zalky/make-clj`](https://github.com/zalky/make-clj). See the
+documentation there for details.
+
 There are also some useful functions in the `io.zalky.build.jar` namespace
 for updating files in jars.
 
